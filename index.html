@@ -77,29 +77,6 @@
         mouse.y = -1000;
     });
 
-    // 클릭 이벤트 추가
-    window.addEventListener('click', (e) => {
-    const numParticles = 70; // 파티클 개수 (크지 않게 유지)
-    
-    for (let i = 0; i < numParticles; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        
-        // 속도는 매우 빠르지만 수명(life)을 짧게 설정하여 반경을 제한함
-        const speed = Math.random() * 20 + 50; 
-        
-        particles.push({
-            x: e.clientX,
-            y: e.clientY,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            // 수명을 2~5 프레임 내외로 짧게 설정하여 멀리 가지 못하게 함
-            life: Math.random() * 3 + 3, 
-            // 감속 계수 추가 (매 프레임마다 속도를 줄임)
-            friction: 0.7 
-        });
-    }
-});
-
     function draw() {
         ctx.fillStyle = '#555';
         ctx.fillRect(0, 0, width, height);
@@ -108,28 +85,6 @@
 
         const cols = grid.length;
         const rows = grid[0].length;
-
-        // 파티클 상태 갱신 및 격자에 반영
-        for (let i = particles.length - 1; i >= 0; i--) {
-            let p = particles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life--;
-
-            // 파티클의 현재 위치를 격자 인덱스로 변환
-            let col = Math.floor(p.x / spacing);
-            let row = Math.floor(p.y / spacing);
-
-            // 화면 범위 내의 격자인 경우 상태 값을 1(가장 밝은 상태)로 고정
-            if (col >= 0 && col < cols && row >= 0 && row < rows) {
-                grid[col][row].value = 1;
-            }
-
-            // 수명이 다한 파티클 제거
-            if (p.life <= 0) {
-                particles.splice(i, 1);
-            }
-        }
 
         for (let i = 0; i < cols; i++) {
             for (let j = 0; j < rows; j++) {
