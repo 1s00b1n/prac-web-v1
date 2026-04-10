@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스크린톤 마우스 상호작용</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="screentoneCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('screentoneCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let width, height;
+    let mouse = { x: -1000, y: -1000 };
+
+    // 화면 크기에 맞게 캔버스 크기 조정
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    // 마우스 위치 추적
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+
+    // 화면 밖으로 마우스가 나가면 초기화
+    window.addEventListener('mouseout', () => {
+        mouse.x = -1000;
+        mouse.y = -1000;
+    });
+
+    // 스크린톤 설정 값
+    const spacing = 16; // 점 사이의 간격
+    const maxRadius = 7; // 점의 최대 반지름
+
+    function draw() {
+        // 배경 초기화
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.fillStyle = 'black';
+
+        // 격자 형태로 점 그리기
+        for (let x = 0; x < width; x += spacing) {
+            for (let y = 0; y < height; y += spacing) {
+                
+                // 마우스 위치와 현재 점 위치 사이의 거리 계산
+                const dx = mouse.x - x;
+                const dy = mouse.y - y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // 거리에 따른 반지름 계산 (가까울수록 점이 작아짐)
+                // 숫자 40을 조절하여 마우스에 반응하는 반경을 변경할 수 있습니다.
+                let radius = maxRadius - (maxRadius * (50 / (distance + 10))); 
+
+                // 반지름의 최소값과 최대값 제한
+                if (radius < 0.5) radius = 0.5;
+                if (radius > maxRadius) radius = maxRadius;
+
+                // 원 그리기
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 애니메이션 프레임 요청
+        requestAnimationFrame(draw);
+    }
+
+    // 그리기 시작
+    draw();
+</script>
+
+</body>
+</html>
