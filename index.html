@@ -26,17 +26,16 @@
     let width, height;
     let mouse = { x: -1000, y: -1000 };
     let grid = [];
-    let particles = []; // 파티클 데이터를 저장할 배열
 
     // 설정 값
-    const spacing = 20; // 격자 간격
+    const spacing = 18; // 격자 간격
     const fontSize = 30; // 폰트 크기
     const mouseRadius = 200; // 마우스에 반응하는 반경
     const reactionSpeed = 0.3;  // 마우스 접근 시 반응 속도
     const recoverySpeed = 0.01; // 상태 복구 속도 (잔상 효과)
 
     // 밀도를 표현할 문자 배열
-    const densityChars = ['█', '▓', '▒', '░', '=', '+', '-', '.', ' '];
+    const densityChars = ['█', '▓', '▒', '▒', '░', '░', ' ', ' ', ' '];
 
     function resize() {
         width = window.innerWidth;
@@ -78,7 +77,7 @@
     });
 
     function draw() {
-        ctx.fillStyle = '#555';
+        ctx.fillStyle = '#C24D20';
         ctx.fillRect(0, 0, width, height);
 
         ctx.fillStyle = '#111';
