@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>아스키 아트 및 시선 추적</title>
+    <title>아스키 아트 및 시선 추적 (합성)</title>
     <style>
         body {
             margin: 0;
@@ -25,19 +25,22 @@
 
     let width, height;
     let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    let grid = [];
+    let skinGrid = [];
 
     const spacing = 12; // 격자 간격
     const fontSize = 12; // 폰트 크기
 
-    // 명도를 표현할 문자 배열 (어두운 색 -> 밝은 색)
+    // 명도를 표현할 문자 배열
     const densityChars = [' ', ' ', '.', ':', '-', '=', '+', '*', '#', '%', '@'];
-
-    // 사용할 이미지 객체 생성
-    const img = new Image();
-    img.src = 'eye-image.jpg'; // 파일명에 맞게 수정하십시오.
     
-    // 로컬 환경에서 캔버스 이미지 데이터 추출 시 보안 오류를 방지하기 위한 속성
+    // 원형 눈동자 크기 설정
+    const eyeBaseRadius = 180; // 흰자위가 표시될 최대 반경
+    const irisRadius = 70;     // 홍채 반경
+    const pupilRadius = 25;    // 동공 반경
+    
+    const img = new Image();
+    // 주의: 배경이 투명하게 처리된 PNG 파일의 경로를 입력해야 합니다.
+    img.src = 'eye-image.png'; 
     img.crossOrigin = "Anonymous";
 
     img.onload = () => {
@@ -66,13 +69,11 @@
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // 이미지를 캔버스 크기에 맞게 그리기 위한 임시 캔버스
         const offCanvas = document.createElement('canvas');
         const offCtx = offCanvas.getContext('2d');
         offCanvas.width = width;
         offCanvas.height = height;
 
-        // 화면 비율에 맞춰 이미지 크기 및 위치 계산
         const imgRatio = img.width / img.height;
         const canvasRatio = width / height;
         let drawWidth, drawHeight, offsetX, offsetY;
@@ -89,40 +90,42 @@
             offsetY = 0;
         }
 
-        // 임시 캔버스에 이미지 렌더링 후 픽셀 데이터 추출
         offCtx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
         const imageData = offCtx.getImageData(0, 0, width, height).data;
 
         const cols = Math.ceil(width / spacing);
         const rows = Math.ceil(height / spacing);
         
-        grid = [];
+        skinGrid = [];
         for (let i = 0; i < cols; i++) {
-            grid[i] = [];
+            skinGrid[i] = [];
             for (let j = 0; j < rows; j++) {
                 let x = i * spacing + spacing / 2;
                 let y = j * spacing + spacing / 2;
 
-                // 해당 격자 위치의 픽셀 인덱스 계산
                 const pixelX = Math.floor(x);
                 const pixelY = Math.floor(y);
                 const index = (pixelY * width + pixelX) * 4;
 
-                // RGB 값을 통해 명도(Brightness) 계산 (0 ~ 1 범위)
                 const r = imageData[index];
                 const g = imageData[index + 1];
                 const b = imageData[index + 2];
+                const a = imageData[index + 3]; // 투명도(Alpha) 값 추출
+
                 let brightness = 0;
-                
-                if (r !== undefined) {
-                    // 인간의 눈에 맞는 흑백 변환 공식 적용
+                let isSkin = false;
+
+                // 알파 값이 일정 수준 이상인 픽셀만 바탕 이미지로 인식
+                if (a > 128) { 
                     brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                    isSkin = true;
                 }
 
-                grid[i][j] = {
+                skinGrid[i][j] = {
                     x: x,
                     y: y,
-                    brightness: brightness
+                    brightness: brightness,
+                    isSkin: isSkin
                 };
             }
         }
@@ -132,34 +135,62 @@
         ctx.fillStyle = '#050505';
         ctx.fillRect(0, 0, width, height);
 
-        ctx.fillStyle = '#cccccc';
+        const cols = skinGrid.length;
+        const rows = skinGrid[0].length;
 
-        const cols = grid.length;
-        const rows = grid[0].length;
+        // 화면 중앙을 눈의 기본 중심으로 설정
+        const eyeCenterX = width / 2;
+        const eyeCenterY = height / 2;
 
-        // 마우스 좌표와 화면 중심점의 차이 계산
-        const mouseDx = mouse.x - width / 2;
-        const mouseDy = mouse.y - height / 2;
+        const mouseDx = mouse.x - eyeCenterX;
+        const mouseDy = mouse.y - eyeCenterY;
+
+        // 눈동자의 최대 이동 거리 제한
+        const maxMove = 50;
+        const angle = Math.atan2(mouseDy, mouseDx);
+        const distance = Math.min(Math.sqrt(mouseDx * mouseDx + mouseDy * mouseDy) * 0.1, maxMove);
+        
+        const moveX = Math.cos(angle) * distance;
+        const moveY = Math.sin(angle) * distance;
 
         for (let i = 0; i < cols; i++) {
             for (let j = 0; j < rows; j++) {
-                let cell = grid[i][j];
+                let cell = skinGrid[i][j];
 
-                // 밝기에 따라 배열에서 출력할 문자를 선택
-                let charIndex = Math.floor(cell.brightness * (densityChars.length - 1));
-                if (charIndex < 0) charIndex = 0;
-                if (charIndex >= densityChars.length) charIndex = densityChars.length - 1;
+                if (cell.isSkin) {
+                    // 바탕 이미지(피부) 영역 출력
+                    let charIndex = Math.floor(cell.brightness * (densityChars.length - 1));
+                    if (charIndex < 0) charIndex = 0;
+                    if (charIndex >= densityChars.length) charIndex = densityChars.length - 1;
 
-                const charToDraw = densityChars[charIndex];
+                    ctx.fillStyle = '#cccccc';
+                    ctx.fillText(densityChars[charIndex], cell.x, cell.y);
+                } else {
+                    // 투명한 영역에 절차적으로 생성된 눈동자 출력
+                    let dx = cell.x - eyeCenterX;
+                    let dy = cell.y - eyeCenterY;
+                    let distToCenter = Math.sqrt(dx * dx + dy * dy);
 
-                if (charToDraw !== ' ') {
-                    // 시선 추적 연산: 어두운 부분일수록 마우스를 따라 이동하는 정도가 커짐
-                    // 0.08은 최대 이동 계수입니다. 필요에 따라 수정하십시오.
-                    
-                    const drawX = cell.x + (mouseDx * parallaxFactor);
-                    const drawY = cell.y + (mouseDy * parallaxFactor);
+                    if (distToCenter < eyeBaseRadius) {
+                        
+                        // 마우스 위치에 따른 동공 중심 연산
+                        let dxEye = cell.x - (eyeCenterX + moveX);
+                        let dyEye = cell.y - (eyeCenterY + moveY);
+                        let distToEye = Math.sqrt(dxEye * dxEye + dyEye * dyEye);
 
-                    ctx.fillText(charToDraw, drawX, drawY);
+                        let charToDraw = '.'; // 기본 흰자위 문자
+                        ctx.fillStyle = '#666666'; 
+
+                        if (distToEye < pupilRadius) {
+                            charToDraw = '@';
+                            ctx.fillStyle = '#4488ff'; // 동공 색상
+                        } else if (distToEye < irisRadius) {
+                            charToDraw = '#';
+                            ctx.fillStyle = '#999999'; // 홍채 색상
+                        }
+
+                        ctx.fillText(charToDraw, cell.x, cell.y);
+                    }
                 }
             }
         }
