@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>아스키 아트 및 파티클 상호작용</title>
+    <title>아스키 아트 및 시선 추적</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #ffffff;
+            background-color: #050505;
         }
         canvas {
             display: block;
@@ -24,18 +24,37 @@
     const ctx = canvas.getContext('2d');
 
     let width, height;
-    let mouse = { x: -1000, y: -1000 };
+    let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     let grid = [];
 
-    // 설정 값
-    const spacing = 18; // 격자 간격
-    const fontSize = 30; // 폰트 크기
-    const mouseRadius = 200; // 마우스에 반응하는 반경
-    const reactionSpeed = 0.3;  // 마우스 접근 시 반응 속도
-    const recoverySpeed = 0.01; // 상태 복구 속도 (잔상 효과)
+    const spacing = 12; // 격자 간격
+    const fontSize = 12; // 폰트 크기
 
-    // 밀도를 표현할 문자 배열
-    const densityChars = ['█', '▓', '▒', '▒', '░', '░', ' ', ' ', ' '];
+    // 명도를 표현할 문자 배열 (어두운 색 -> 밝은 색)
+    const densityChars = [' ', ' ', '.', ':', '-', '=', '+', '*', '#', '%', '@'];
+
+    // 사용할 이미지 객체 생성
+    const img = new Image();
+    img.src = 'eye-image.jpg'; // 파일명에 맞게 수정하십시오.
+    
+    // 로컬 환경에서 캔버스 이미지 데이터 추출 시 보안 오류를 방지하기 위한 속성
+    img.crossOrigin = "Anonymous";
+
+    img.onload = () => {
+        init();
+    };
+
+    function init() {
+        resize();
+        window.addEventListener('resize', resize);
+        
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        draw();
+    }
 
     function resize() {
         width = window.innerWidth;
@@ -47,6 +66,33 @@
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
+        // 이미지를 캔버스 크기에 맞게 그리기 위한 임시 캔버스
+        const offCanvas = document.createElement('canvas');
+        const offCtx = offCanvas.getContext('2d');
+        offCanvas.width = width;
+        offCanvas.height = height;
+
+        // 화면 비율에 맞춰 이미지 크기 및 위치 계산
+        const imgRatio = img.width / img.height;
+        const canvasRatio = width / height;
+        let drawWidth, drawHeight, offsetX, offsetY;
+
+        if (canvasRatio > imgRatio) {
+            drawWidth = width;
+            drawHeight = width / imgRatio;
+            offsetX = 0;
+            offsetY = (height - drawHeight) / 2;
+        } else {
+            drawHeight = height;
+            drawWidth = height * imgRatio;
+            offsetX = (width - drawWidth) / 2;
+            offsetY = 0;
+        }
+
+        // 임시 캔버스에 이미지 렌더링 후 픽셀 데이터 추출
+        offCtx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+        const imageData = offCtx.getImageData(0, 0, width, height).data;
+
         const cols = Math.ceil(width / spacing);
         const rows = Math.ceil(height / spacing);
         
@@ -54,69 +100,73 @@
         for (let i = 0; i < cols; i++) {
             grid[i] = [];
             for (let j = 0; j < rows; j++) {
+                let x = i * spacing + spacing / 2;
+                let y = j * spacing + spacing / 2;
+
+                // 해당 격자 위치의 픽셀 인덱스 계산
+                const pixelX = Math.floor(x);
+                const pixelY = Math.floor(y);
+                const index = (pixelY * width + pixelX) * 4;
+
+                // RGB 값을 통해 명도(Brightness) 계산 (0 ~ 1 범위)
+                const r = imageData[index];
+                const g = imageData[index + 1];
+                const b = imageData[index + 2];
+                let brightness = 0;
+                
+                if (r !== undefined) {
+                    // 인간의 눈에 맞는 흑백 변환 공식 적용
+                    brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                }
+
                 grid[i][j] = {
-                    x: i * spacing + spacing / 2,
-                    y: j * spacing + spacing / 2,
-                    value: 0
+                    x: x,
+                    y: y,
+                    brightness: brightness
                 };
             }
         }
     }
 
-    window.addEventListener('resize', resize);
-    resize();
-
-    window.addEventListener('mousemove', (e) => {
-        mouse.x = e.clientX;
-        mouse.y = e.clientY;
-    });
-
-    window.addEventListener('mouseout', () => {
-        mouse.x = -1000;
-        mouse.y = -1000;
-    });
-
     function draw() {
-        ctx.fillStyle = '#333';
+        ctx.fillStyle = '#050505';
         ctx.fillRect(0, 0, width, height);
 
-        ctx.fillStyle = '#111';
+        ctx.fillStyle = '#cccccc';
 
         const cols = grid.length;
         const rows = grid[0].length;
+
+        // 마우스 좌표와 화면 중심점의 차이 계산
+        const mouseDx = mouse.x - width / 2;
+        const mouseDy = mouse.y - height / 2;
 
         for (let i = 0; i < cols; i++) {
             for (let j = 0; j < rows; j++) {
                 let cell = grid[i][j];
 
-                const dx = mouse.x - cell.x;
-                const dy = mouse.y - cell.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                let targetValue = 0;
-                if (distance < mouseRadius) {
-                    targetValue = 1 - (distance / mouseRadius);
-                }
-
-                if (targetValue > cell.value) {
-                    cell.value += (targetValue - cell.value) * reactionSpeed;
-                } else {
-                    cell.value += (targetValue - cell.value) * recoverySpeed;
-                }
-
-                let charIndex = Math.floor(cell.value * (densityChars.length - 1));
-                
+                // 밝기에 따라 배열에서 출력할 문자를 선택
+                let charIndex = Math.floor(cell.brightness * (densityChars.length - 1));
                 if (charIndex < 0) charIndex = 0;
                 if (charIndex >= densityChars.length) charIndex = densityChars.length - 1;
 
-                ctx.fillText(densityChars[charIndex], cell.x, cell.y);
+                const charToDraw = densityChars[charIndex];
+
+                if (charToDraw !== ' ') {
+                    // 시선 추적 연산: 어두운 부분일수록 마우스를 따라 이동하는 정도가 커짐
+                    // 0.08은 최대 이동 계수입니다. 필요에 따라 수정하십시오.
+                    const parallaxFactor = (1 - cell.brightness) * 0.08; 
+                    
+                    const drawX = cell.x + (mouseDx * parallaxFactor);
+                    const drawY = cell.y + (mouseDy * parallaxFactor);
+
+                    ctx.fillText(charToDraw, drawX, drawY);
+                }
             }
         }
 
         requestAnimationFrame(draw);
     }
-
-    draw();
 </script>
 
 </body>
