@@ -151,6 +151,16 @@
                 if (charIndex >= densityChars.length) charIndex = densityChars.length - 1;
 
                 const charToDraw = densityChars[charIndex];
+
+                if (charToDraw !== ' ') {
+                    // 시선 추적 연산: 어두운 부분일수록 마우스를 따라 이동하는 정도가 커짐
+                    // 0.08은 최대 이동 계수입니다. 필요에 따라 수정하십시오.
+                    
+                    const drawX = cell.x + (mouseDx * parallaxFactor);
+                    const drawY = cell.y + (mouseDy * parallaxFactor);
+
+                    ctx.fillText(charToDraw, drawX, drawY);
+                }
             }
         }
 
