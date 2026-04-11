@@ -8,7 +8,7 @@
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #050505;
+            background-color: #ffffff; /* 배경색을 흰색으로 변경 */
         }
         canvas {
             display: block;
@@ -27,20 +27,18 @@
     let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     let skinGrid = [];
 
-    const spacing = 12; // 격자 간격
-    const fontSize = 12; // 폰트 크기
+    const spacing = 12;
+    const fontSize = 18;
 
-    // 명도를 표현할 문자 배열
-    const densityChars = [' ', ' ', '.', ':', '-', '=', '+', '*', '#', '%', '@'];
+    // 명도를 표현할 문자 배열 역순 배치 (어두운 색 -> 밝은 색)
+    const densityChars = ['█', '▓', '▒', '░', '*', '+', '=', '-', '.', ' ', ' '];
     
-    // 원형 눈동자 크기 설정
-    const eyeBaseRadius = 180; // 흰자위가 표시될 최대 반경
-    const irisRadius = 70;     // 홍채 반경
-    const pupilRadius = 25;    // 동공 반경
+    const eyeBaseRadius = 250;
+    const irisRadius = 115;
+    const pupilRadius = 50;
     
     const img = new Image();
-    // 주의: 배경이 투명하게 처리된 PNG 파일의 경로를 입력해야 합니다.
-    img.src = 'eye-image.png'; 
+    img.src = 'eye-image.png'; // 사용하실 PNG 파일명으로 확인하십시오.
     img.crossOrigin = "Anonymous";
 
     img.onload = () => {
@@ -110,12 +108,11 @@
                 const r = imageData[index];
                 const g = imageData[index + 1];
                 const b = imageData[index + 2];
-                const a = imageData[index + 3]; // 투명도(Alpha) 값 추출
+                const a = imageData[index + 3];
 
                 let brightness = 0;
                 let isSkin = false;
 
-                // 알파 값이 일정 수준 이상인 픽셀만 바탕 이미지로 인식
                 if (a > 128) { 
                     brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
                     isSkin = true;
@@ -132,20 +129,18 @@
     }
 
     function draw() {
-        ctx.fillStyle = '#050505';
+        ctx.fillStyle = '#ffffff'; // 캔버스 영역 칠하기 (흰색)
         ctx.fillRect(0, 0, width, height);
 
         const cols = skinGrid.length;
         const rows = skinGrid[0].length;
 
-        // 화면 중앙을 눈의 기본 중심으로 설정
-        const eyeCenterX = width / 2;
-        const eyeCenterY = height / 2;
+        const eyeCenterX = width * 0.60; // 화면 가로의 60% 지점
+        const eyeCenterY = height * 0.52; // 화면 세로의 52% 지점
 
         const mouseDx = mouse.x - eyeCenterX;
         const mouseDy = mouse.y - eyeCenterY;
 
-        // 눈동자의 최대 이동 거리 제한
         const maxMove = 50;
         const angle = Math.atan2(mouseDy, mouseDx);
         const distance = Math.min(Math.sqrt(mouseDx * mouseDx + mouseDy * mouseDy) * 0.1, maxMove);
@@ -158,35 +153,30 @@
                 let cell = skinGrid[i][j];
 
                 if (cell.isSkin) {
-                    // 바탕 이미지(피부) 영역 출력
                     let charIndex = Math.floor(cell.brightness * (densityChars.length - 1));
                     if (charIndex < 0) charIndex = 0;
                     if (charIndex >= densityChars.length) charIndex = densityChars.length - 1;
 
-                    ctx.fillStyle = '#cccccc';
+                    ctx.fillStyle = '#000000'; // 바탕 이미지 문자색 (검은색)
                     ctx.fillText(densityChars[charIndex], cell.x, cell.y);
                 } else {
-                    // 투명한 영역에 절차적으로 생성된 눈동자 출력
                     let dx = cell.x - eyeCenterX;
                     let dy = cell.y - eyeCenterY;
                     let distToCenter = Math.sqrt(dx * dx + dy * dy);
 
                     if (distToCenter < eyeBaseRadius) {
                         
-                        // 마우스 위치에 따른 동공 중심 연산
                         let dxEye = cell.x - (eyeCenterX + moveX);
                         let dyEye = cell.y - (eyeCenterY + moveY);
                         let distToEye = Math.sqrt(dxEye * dxEye + dyEye * dyEye);
 
-                        let charToDraw = '.'; // 기본 흰자위 문자
-                        ctx.fillStyle = '#666666'; 
+                        let charToDraw = ' ';
+                        ctx.fillStyle = '#66FF58'; // 흰자위, 동공, 홍채 문자색 (검은색)
 
                         if (distToEye < pupilRadius) {
                             charToDraw = '@';
-                            ctx.fillStyle = '#4488ff'; // 동공 색상
                         } else if (distToEye < irisRadius) {
                             charToDraw = '#';
-                            ctx.fillStyle = '#999999'; // 홍채 색상
                         }
 
                         ctx.fillText(charToDraw, cell.x, cell.y);
