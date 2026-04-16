@@ -3,47 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>아스키 아트 및 시선 추적 (합성)</title>
+    <title>아스키 아트 및 시선 추적 (비디오)</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #ffffff; /* 배경색을 흰색으로 변경 */
+            background-color: #ffffff;
         }
         canvas {
             display: block;
+        }
+        #videoElement {
+            display: none;
         }
     </style>
 </head>
 <body>
 
+<video id="videoElement" src="video.mp4" autoplay loop muted playsinline crossorigin="anonymous"></video>
 <canvas id="asciiCanvas"></canvas>
 
 <script>
     const canvas = document.getElementById('asciiCanvas');
     const ctx = canvas.getContext('2d');
+    const video = document.getElementById('videoElement');
 
     let width, height;
     let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     let skinGrid = [];
 
-    const spacing = 12;
-    const fontSize = 18;
+    const spacing = 10;
+    const fontSize = 13;
 
-    // 명도를 표현할 문자 배열 역순 배치 (어두운 색 -> 밝은 색)
     const densityChars = ['█', '▓', '▒', '░', '*', '+', '=', '-', '.', ' ', ' '];
     
     const eyeBaseRadius = 250;
     const irisRadius = 115;
     const pupilRadius = 50;
-    
-    const img = new Image();
-    img.src = 'eye-image.png'; // 사용하실 PNG 파일명으로 확인하십시오.
-    img.crossOrigin = "Anonymous";
 
-    img.onload = () => {
-        init();
-    };
+    let offCanvas = document.createElement('canvas');
+    let offCtx = offCanvas.getContext('2d');
+
+    // 비디오 강제 재생 후 그리기 시작
+        video.play().then(() => {
+            draw();
+        }).catch((error) => {
+            console.error("비디오 재생이 차단되었습니다:", error);
+            // 브라우저 정책으로 재생이 막힌 경우, 화면 클릭 시 재생되도록 이벤트 추가
+            window.addEventListener('click', () => {
+                video.play();
+                draw();
+            }, { once: true });
+        });
+
+    // 비디오의 메타데이터(너비, 높이 등)가 로드되면 초기화를 시작합니다.
+    video.addEventListener('loadedmetadata', init);
 
     function init() {
         resize();
@@ -63,32 +77,33 @@
         canvas.width = width;
         canvas.height = height;
 
-        ctx.font = `${fontSize}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        const offCanvas = document.createElement('canvas');
-        const offCtx = offCanvas.getContext('2d');
         offCanvas.width = width;
         offCanvas.height = height;
 
-        const imgRatio = img.width / img.height;
+        ctx.font = `${fontSize}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+    }
+
+    // 매 프레임마다 비디오 화면을 읽어 명도를 계산하는 함수
+    function updateGrid() {
+        const videoRatio = video.videoWidth / video.videoHeight;
         const canvasRatio = width / height;
         let drawWidth, drawHeight, offsetX, offsetY;
 
-        if (canvasRatio > imgRatio) {
+        if (canvasRatio > videoRatio) {
             drawWidth = width;
-            drawHeight = width / imgRatio;
+            drawHeight = width / videoRatio;
             offsetX = 0;
             offsetY = (height - drawHeight) / 2;
         } else {
             drawHeight = height;
-            drawWidth = height * imgRatio;
+            drawWidth = height * videoRatio;
             offsetX = (width - drawWidth) / 2;
             offsetY = 0;
         }
 
-        offCtx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+        offCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
         const imageData = offCtx.getImageData(0, 0, width, height).data;
 
         const cols = Math.ceil(width / spacing);
@@ -103,6 +118,10 @@
 
                 const pixelX = Math.floor(x);
                 const pixelY = Math.floor(y);
+                
+                // 캔버스 범위를 벗어나는 픽셀 제외
+                if(pixelX >= width || pixelY >= height) continue;
+
                 const index = (pixelY * width + pixelX) * 4;
 
                 const r = imageData[index];
@@ -129,57 +148,43 @@
     }
 
     function draw() {
-        ctx.fillStyle = '#ffffff'; // 캔버스 영역 칠하기 (흰색)
+        // 비디오 데이터가 재생 가능한 상태일 때만 그리드 갱신
+        if (video.readyState >= video.HAVE_CURRENT_DATA) {
+            updateGrid();
+        }
+
+        ctx.fillStyle = '#cccccc';
         ctx.fillRect(0, 0, width, height);
 
         const cols = skinGrid.length;
-        const rows = skinGrid[0].length;
+        if (cols > 0) {
+            const rows = skinGrid[0].length;
 
-        const eyeCenterX = width * 0.60; // 화면 가로의 60% 지점
-        const eyeCenterY = height * 0.52; // 화면 세로의 52% 지점
+            const eyeCenterX = width * 0.60;
+            const eyeCenterY = height * 0.52;
 
-        const mouseDx = mouse.x - eyeCenterX;
-        const mouseDy = mouse.y - eyeCenterY;
+            const mouseDx = mouse.x - eyeCenterX;
+            const mouseDy = mouse.y - eyeCenterY;
 
-        const maxMove = 50;
-        const angle = Math.atan2(mouseDy, mouseDx);
-        const distance = Math.min(Math.sqrt(mouseDx * mouseDx + mouseDy * mouseDy) * 0.1, maxMove);
-        
-        const moveX = Math.cos(angle) * distance;
-        const moveY = Math.sin(angle) * distance;
+            const maxMove = 50;
+            const angle = Math.atan2(mouseDy, mouseDx);
+            const distance = Math.min(Math.sqrt(mouseDx * mouseDx + mouseDy * mouseDy) * 0.1, maxMove);
+            
+            const moveX = Math.cos(angle) * distance;
+            const moveY = Math.sin(angle) * distance;
 
-        for (let i = 0; i < cols; i++) {
-            for (let j = 0; j < rows; j++) {
-                let cell = skinGrid[i][j];
+            for (let i = 0; i < cols; i++) {
+                for (let j = 0; j < rows; j++) {
+                    let cell = skinGrid[i][j];
+                    if (!cell) continue;
 
-                if (cell.isSkin) {
-                    let charIndex = Math.floor(cell.brightness * (densityChars.length - 1));
-                    if (charIndex < 0) charIndex = 0;
-                    if (charIndex >= densityChars.length) charIndex = densityChars.length - 1;
+                    if (cell.isSkin) {
+                        let charIndex = Math.floor(cell.brightness * (densityChars.length - 1));
+                        if (charIndex < 0) charIndex = 0;
+                        if (charIndex >= densityChars.length) charIndex = densityChars.length - 1;
 
-                    ctx.fillStyle = '#000000'; // 바탕 이미지 문자색 (검은색)
-                    ctx.fillText(densityChars[charIndex], cell.x, cell.y);
-                } else {
-                    let dx = cell.x - eyeCenterX;
-                    let dy = cell.y - eyeCenterY;
-                    let distToCenter = Math.sqrt(dx * dx + dy * dy);
-
-                    if (distToCenter < eyeBaseRadius) {
-                        
-                        let dxEye = cell.x - (eyeCenterX + moveX);
-                        let dyEye = cell.y - (eyeCenterY + moveY);
-                        let distToEye = Math.sqrt(dxEye * dxEye + dyEye * dyEye);
-
-                        let charToDraw = ' ';
-                        ctx.fillStyle = '#66FF58'; // 흰자위, 동공, 홍채 문자색 (검은색)
-
-                        if (distToEye < pupilRadius) {
-                            charToDraw = '@';
-                        } else if (distToEye < irisRadius) {
-                            charToDraw = '#';
-                        }
-
-                        ctx.fillText(charToDraw, cell.x, cell.y);
+                        ctx.fillStyle = '#000000';
+                        ctx.fillText(densityChars[charIndex], cell.x, cell.y);
                     }
                 }
             }
