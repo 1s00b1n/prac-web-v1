@@ -11,10 +11,21 @@ export function createRenderer({ canvas, video }) {
   let fontSize = 10;
   let artScale = DEFAULTS.artScaleBase;
 
-  // video draw metrics
   let videoStartX = 0, videoStartY = 0, videoDrawWidth = 0, videoDrawHeight = 0;
 
   let animStartTime = null;
+
+  let mouseX = -1, mouseY = -1;
+
+  canvas.addEventListener('mousemove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    mouseX = e.clientX - r.left;
+    mouseY = e.clientY - r.top;
+  });
+  canvas.addEventListener('mouseleave', () => {
+    mouseX = -1;
+    mouseY = -1;
+  });
 
   function resize() {
     width = window.innerWidth;
@@ -171,8 +182,15 @@ export function createRenderer({ canvas, video }) {
       updateGrid();
     }
 
+    // 메인 캔버스: 배경만
     ctx.fillStyle = '#F3F3F3';
     ctx.fillRect(0, 0, width, height);
+
+    // 오프스크린: 투명 배경 위에 ASCII 아트만
+    offCtx.clearRect(0, 0, width, height);
+    offCtx.font = `${fontSize}px monospace`;
+    offCtx.textAlign = 'center';
+    offCtx.textBaseline = 'middle';
 
     for (let i = 0; i < skinGrid.length; i++) {
       let cell = skinGrid[i];
@@ -180,9 +198,29 @@ export function createRenderer({ canvas, video }) {
       if (charIndex < 0) charIndex = 0;
       if (charIndex >= DEFAULTS.densityChars.length) charIndex = DEFAULTS.densityChars.length - 1;
 
-      ctx.fillStyle = `rgb(${cell.r}, ${cell.g}, ${cell.b})`;
-      ctx.fillText(DEFAULTS.densityChars[charIndex], cell.x, cell.y);
+      offCtx.fillStyle = `rgb(${cell.r}, ${cell.g}, ${cell.b})`;
+      offCtx.fillText(DEFAULTS.densityChars[charIndex], cell.x, cell.y);
     }
+
+    // 마스크 오버레이: 오프스크린에 source-atop으로 적용
+    const bX = videoStartX + videoDrawWidth  * DEFAULTS.boxXRatio;
+    const bY = videoStartY + videoDrawHeight * DEFAULTS.boxYRatio;
+    const bW = videoDrawWidth  * DEFAULTS.boxWidthRatio;
+    const bH = videoDrawHeight * DEFAULTS.boxHeightRatio;
+
+    const mouseInBox = mouseX >= bX && mouseX <= bX + bW &&
+                       mouseY >= bY && mouseY <= bY + bH;
+
+    if (mouseInBox) {
+      offCtx.save();
+      offCtx.globalCompositeOperation = 'source-atop';
+      offCtx.fillStyle = '#3CDA00';
+      offCtx.fillRect(bX, bY, bW, bH);
+      offCtx.restore();
+    }
+
+    // 오프스크린 결과를 메인 캔버스에 합성
+    ctx.drawImage(offCanvas, 0, 0);
 
     drawBoundingBoxAnimated(timestamp);
   }

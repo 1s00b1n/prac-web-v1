@@ -1,9 +1,9 @@
 export const DEFAULTS = {
   artScaleBase: 0.5,
-  boxXRatio: 0.53,
-  boxYRatio: 0.21,
-  boxWidthRatio: 0.16,
-  boxHeightRatio: 0.23,
+  boxXRatio: 0.52,
+  boxYRatio: 0.2,
+  boxWidthRatio: 0.18,
+  boxHeightRatio: 0.26,
   boxColor: "#3CDA00",
   boxText: " 1.0 Notice ",
   smallBoxWidthRatio: 0.10,
