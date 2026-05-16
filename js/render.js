@@ -9,14 +9,20 @@ export function createRenderer({ canvas, video }) {
   let skinGrid = [];
   let spacing = 10;
   let fontSize = 10;
-  let artScale = DEFAULTS.artScaleBase;
+
+  // artScale: resize()가 계산한 '기준 배율' (화면 크기 반영)
+  // targetArtScale: 줌 토글이 곱해진 최종 목표 배율
+  // currentArtScale: 매 프레임 lerp로 부드럽게 추종
+  let baseArtScale = DEFAULTS.artScaleBase;
+  let targetArtScale = baseArtScale;
+  let currentArtScale = baseArtScale;
+  let isZoomedOut = false;
 
   let videoStartX = 0, videoStartY = 0, videoDrawWidth = 0, videoDrawHeight = 0;
 
   let animStartTime = null;
 
   let mouseX = -1, mouseY = -1;
-
   let maskAlpha = 0;
 
   canvas.addEventListener('mousemove', (e) => {
@@ -38,7 +44,13 @@ export function createRenderer({ canvas, video }) {
     offCanvas.height = height;
 
     const scale = Math.min(width / DEFAULTS.baseWidth, 1);
-    artScale = 0.4 + (1 - scale) * 1.0;
+    baseArtScale = 0.4 + (1 - scale) * 1.0;
+
+    // 줌 상태를 유지하면서 기준 배율만 업데이트
+    targetArtScale = isZoomedOut
+      ? baseArtScale * (DEFAULTS.artScaleZoomed / DEFAULTS.artScaleBase)
+      : baseArtScale;
+
     spacing = Math.max(8, Math.floor(14 * scale));
     fontSize = Math.max(8, Math.floor(14 * scale));
 
@@ -47,30 +59,40 @@ export function createRenderer({ canvas, video }) {
     ctx.textBaseline = 'middle';
   }
 
+  /** 바운딩박스 클릭 시 호출 — 축소/원복 토글 */
+  function toggleZoom() {
+    isZoomedOut = !isZoomedOut;
+    const ratio = DEFAULTS.artScaleZoomed / DEFAULTS.artScaleBase; // 0.25/0.5 = 0.5
+    targetArtScale = isZoomedOut ? baseArtScale * ratio : baseArtScale;
+    video.playbackRate = isZoomedOut ? 0.2 : 1.0;
+  }
+
   function updateGrid() {
     if (!video || !video.videoWidth) return;
 
     const videoRatio = video.videoWidth / video.videoHeight;
 
-    const maxWidth = Math.max(width, height * 0.5) * artScale;
-    const maxHeight = Math.max(height, width * 0.5) * artScale;
+    // lerp: currentArtScale → targetArtScale
+    currentArtScale += (targetArtScale - currentArtScale) * DEFAULTS.zoomLerpSpeed;
+
+    const maxWidth  = Math.max(width,  height * 0.5) * currentArtScale;
+    const maxHeight = Math.max(height, width  * 0.5) * currentArtScale;
 
     let drawWidth, drawHeight;
-
     if (maxWidth / maxHeight > videoRatio) {
       drawHeight = maxHeight;
-      drawWidth = maxHeight * videoRatio;
+      drawWidth  = maxHeight * videoRatio;
     } else {
-      drawWidth = maxWidth;
+      drawWidth  = maxWidth;
       drawHeight = maxWidth / videoRatio;
     }
 
-    const startX = (width - drawWidth) / 2;
+    const startX = (width  - drawWidth)  / 2;
     const startY = (height - drawHeight) / 2;
 
-    videoStartX = startX;
-    videoStartY = startY;
-    videoDrawWidth = drawWidth;
+    videoStartX     = startX;
+    videoStartY     = startY;
+    videoDrawWidth  = drawWidth;
     videoDrawHeight = drawHeight;
 
     offCtx.clearRect(0, 0, width, height);
@@ -94,8 +116,7 @@ export function createRenderer({ canvas, video }) {
 
         if (a === 0) continue;
 
-        let brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
+        const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
         skinGrid.push({ x: pixelX, y: pixelY, brightness, r, g, b });
       }
     }
@@ -131,12 +152,12 @@ export function createRenderer({ canvas, video }) {
     if (animStartTime === null) animStartTime = timestamp || performance.now();
     const elapsed = (timestamp || performance.now()) - animStartTime;
 
-    const fX = videoStartX + videoDrawWidth * DEFAULTS.boxXRatio;
+    const fX = videoStartX + videoDrawWidth  * DEFAULTS.boxXRatio;
     const fY = videoStartY + videoDrawHeight * DEFAULTS.boxYRatio;
-    const fW = videoDrawWidth * DEFAULTS.boxWidthRatio;
+    const fW = videoDrawWidth  * DEFAULTS.boxWidthRatio;
     const fH = videoDrawHeight * DEFAULTS.boxHeightRatio;
 
-    const sW = videoDrawWidth * DEFAULTS.smallBoxWidthRatio;
+    const sW = videoDrawWidth  * DEFAULTS.smallBoxWidthRatio;
     const sH = videoDrawHeight * DEFAULTS.smallBoxHeightRatio;
 
     ctx.save();
@@ -150,21 +171,17 @@ export function createRenderer({ canvas, video }) {
     const T4 = T3 + TIMINGS.P3;
 
     if (elapsed < T1) {
-      const t = elapsed / TIMINGS.P0;
+      const t  = elapsed / TIMINGS.P0;
       const tE = 1 - Math.pow(1 - t, 2);
-      const curW = sW * tE;
-      const curH = sH * tE;
-      ctx.strokeRect(fX, fY, curW, curH);
+      ctx.strokeRect(fX, fY, sW * tE, sH * tE);
 
     } else if (elapsed < T2) {
       ctx.strokeRect(fX, fY, sW, sH);
 
     } else if (elapsed < T3) {
-      const t = (elapsed - T2) / TIMINGS.P2;
+      const t  = (elapsed - T2) / TIMINGS.P2;
       const tE = 1 - Math.pow(1 - t, 2);
-      const curW = sW + (fW - sW) * tE;
-      const curH = sH + (fH - sH) * tE;
-      ctx.strokeRect(fX, fY, curW, curH);
+      ctx.strokeRect(fX, fY, sW + (fW - sW) * tE, sH + (fH - sH) * tE);
 
     } else if (elapsed < T4) {
       const t = (elapsed - T3) / TIMINGS.P3;
@@ -184,70 +201,55 @@ export function createRenderer({ canvas, video }) {
       updateGrid();
     }
 
-    // 메인 캔버스: 배경만
     ctx.fillStyle = '#F3F3F3';
     ctx.fillRect(0, 0, width, height);
 
-    // 오프스크린: 투명 배경 위에 ASCII 아트만
     offCtx.clearRect(0, 0, width, height);
     offCtx.font = `${fontSize}px monospace`;
     offCtx.textAlign = 'center';
     offCtx.textBaseline = 'middle';
 
     for (let i = 0; i < skinGrid.length; i++) {
-      let cell = skinGrid[i];
+      const cell = skinGrid[i];
       let charIndex = Math.floor(cell.brightness * (DEFAULTS.densityChars.length - 1));
-      if (charIndex < 0) charIndex = 0;
-      if (charIndex >= DEFAULTS.densityChars.length) charIndex = DEFAULTS.densityChars.length - 1;
+      charIndex = Math.max(0, Math.min(charIndex, DEFAULTS.densityChars.length - 1));
 
       offCtx.fillStyle = `rgb(${cell.r}, ${cell.g}, ${cell.b})`;
       offCtx.fillText(DEFAULTS.densityChars[charIndex], cell.x, cell.y);
     }
 
-    // 마스크 오버레이: 오프스크린에 source-atop으로 적용
+    // 마스크 오버레이
     const bX = videoStartX + videoDrawWidth  * DEFAULTS.boxXRatio;
     const bY = videoStartY + videoDrawHeight * DEFAULTS.boxYRatio;
     const bW = videoDrawWidth  * DEFAULTS.boxWidthRatio;
     const bH = videoDrawHeight * DEFAULTS.boxHeightRatio;
 
     const mouseInBox = mouseX >= bX && mouseX <= bX + bW &&
-                   mouseY >= bY && mouseY <= bY + bH;
+                       mouseY >= bY && mouseY <= bY + bH;
 
-const fadeSpeed = 0.12; // 값이 클수록 빠름
-if (mouseInBox) {
-  maskAlpha = Math.min(1, maskAlpha + fadeSpeed);
-} else {
-  maskAlpha = Math.max(0, maskAlpha - fadeSpeed);
-}
+    const fadeSpeed = 0.12;
+    if (mouseInBox) {
+      maskAlpha = Math.min(1, maskAlpha + fadeSpeed);
+    } else {
+      maskAlpha = Math.max(0, maskAlpha - fadeSpeed);
+    }
 
-if (maskAlpha > 0) {
-  offCtx.save();
-  offCtx.globalCompositeOperation = 'source-atop';
-  offCtx.fillStyle = '#3CDA00';
-  offCtx.globalAlpha = maskAlpha;
-  offCtx.fillRect(bX, bY, bW, bH);
-  offCtx.restore();
-}
+    if (maskAlpha > 0) {
+      offCtx.save();
+      offCtx.globalCompositeOperation = 'source-atop';
+      offCtx.fillStyle = '#3CDA00';
+      offCtx.globalAlpha = maskAlpha;
+      offCtx.fillRect(bX, bY, bW, bH);
+      offCtx.restore();
+    }
 
-    // 오프스크린 결과를 메인 캔버스에 합성
     ctx.drawImage(offCanvas, 0, 0);
-
     drawBoundingBoxAnimated(timestamp);
   }
 
   function getVideoMetrics() {
-    return {
-      videoStartX,
-      videoStartY,
-      videoDrawWidth,
-      videoDrawHeight
-    };
+    return { videoStartX, videoStartY, videoDrawWidth, videoDrawHeight };
   }
 
-  return {
-    resize,
-    updateGrid,
-    draw,
-    getVideoMetrics
-  };
+  return { resize, updateGrid, draw, getVideoMetrics, toggleZoom };
 }

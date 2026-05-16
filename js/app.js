@@ -36,7 +36,7 @@ function init() {
     if (clickX >= bX && clickX <= bX + bW &&
         clickY >= bY && clickY <= bY + bH) {
       console.log('바운딩 박스 영역이 클릭되었습니다.');
-      alert('버튼 클릭 작동');
+      renderer.toggleZoom(); // 비디오 크기 토글
     }
   });
 }
@@ -47,7 +47,6 @@ function loop(timestamp) {
 }
 
 video.addEventListener('loadedmetadata', init);
-// Fallback: if metadata doesn't arrive (some file:// or slow loads), initialize after short delay
 setTimeout(() => {
   if (!_initialized) init();
 }, 500);

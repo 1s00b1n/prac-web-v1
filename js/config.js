@@ -1,5 +1,7 @@
 export const DEFAULTS = {
   artScaleBase: 0.5,
+  artScaleZoomed: 0.25,   // 클릭 후 축소 배율
+  zoomLerpSpeed: 0.08,    // 보간 속도 (0~1, 클수록 빠름)
   boxXRatio: 0.52,
   boxYRatio: 0.2,
   boxWidthRatio: 0.18,
