@@ -17,6 +17,8 @@ export function createRenderer({ canvas, video }) {
 
   let mouseX = -1, mouseY = -1;
 
+  let maskAlpha = 0;
+
   canvas.addEventListener('mousemove', (e) => {
     const r = canvas.getBoundingClientRect();
     mouseX = e.clientX - r.left;
@@ -209,15 +211,23 @@ export function createRenderer({ canvas, video }) {
     const bH = videoDrawHeight * DEFAULTS.boxHeightRatio;
 
     const mouseInBox = mouseX >= bX && mouseX <= bX + bW &&
-                       mouseY >= bY && mouseY <= bY + bH;
+                   mouseY >= bY && mouseY <= bY + bH;
 
-    if (mouseInBox) {
-      offCtx.save();
-      offCtx.globalCompositeOperation = 'source-atop';
-      offCtx.fillStyle = '#3CDA00';
-      offCtx.fillRect(bX, bY, bW, bH);
-      offCtx.restore();
-    }
+const fadeSpeed = 0.12; // 값이 클수록 빠름
+if (mouseInBox) {
+  maskAlpha = Math.min(1, maskAlpha + fadeSpeed);
+} else {
+  maskAlpha = Math.max(0, maskAlpha - fadeSpeed);
+}
+
+if (maskAlpha > 0) {
+  offCtx.save();
+  offCtx.globalCompositeOperation = 'source-atop';
+  offCtx.fillStyle = '#3CDA00';
+  offCtx.globalAlpha = maskAlpha;
+  offCtx.fillRect(bX, bY, bW, bH);
+  offCtx.restore();
+}
 
     // 오프스크린 결과를 메인 캔버스에 합성
     ctx.drawImage(offCanvas, 0, 0);
