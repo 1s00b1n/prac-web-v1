@@ -1,0 +1,14 @@
+/* 기본 레이아웃 */
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #000000;
+}
+
+canvas {
+    display: block;
+}
+
+#videoElement {
+    display: none;
+}

@@ -1,166 +1,27 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>컬러 아스키 아트 (픽셀 아트 효과)</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #000000;
-        }
-        canvas {
-            display: block;
-        }
-        #videoElement {
-            display: none;
-        }
-    </style>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Intel+One+Mono:ital,wght@0,300..700;1,300..700&family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="css/styles.css">
 </head>
+
 <body>
 
-<video id="videoElement" src="video.mp4" autoplay loop muted playsinline crossorigin="anonymous"></video>
-<canvas id="asciiCanvas"></canvas>
+    <video id="videoElement" src="video.mp4" autoplay loop muted playsinline crossorigin="anonymous"></video>
+    <canvas id="asciiCanvas"></canvas>
 
-<script>
-    const canvas = document.getElementById('asciiCanvas');
-    const ctx = canvas.getContext('2d');
-    const video = document.getElementById('videoElement');
-
-    let width, height;
-    let skinGrid = [];
-
-    const spacing = 10;
-    const fontSize = 10;
-
-    // 명도를 표현할 문자 배열 역순 배치 (어두운 색 -> 밝은 색)
-    const densityChars = ['@', '@', '#', '*', ' ', ' '];
-
-    let offCanvas = document.createElement('canvas');
-    let offCtx = offCanvas.getContext('2d');
-
-    video.addEventListener('loadedmetadata', init);
-
-    function init() {
-        resize();
-        window.addEventListener('resize', resize);
-        
-        video.play().then(() => {
-            draw();
-        }).catch((error) => {
-            console.error("비디오 재생 오류:", error);
-            window.addEventListener('click', () => {
-                video.play();
-                draw();
-            }, { once: true });
-        });
-    }
-
-    function resize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
-
-        offCanvas.width = width;
-        offCanvas.height = height;
-
-        ctx.font = `${fontSize}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-    }
-
-    function updateGrid() {
-        const videoRatio = video.videoWidth / video.videoHeight;
-        const canvasRatio = width / height;
-        let drawWidth, drawHeight, offsetX, offsetY;
-
-        if (canvasRatio > videoRatio) {
-            drawWidth = width;
-            drawHeight = width / videoRatio;
-            offsetX = 0;
-            offsetY = (height - drawHeight) / 2;
-        } else {
-            drawHeight = height;
-            drawWidth = height * videoRatio;
-            offsetX = (width - drawWidth) / 2;
-            offsetY = 0;
-        }
-
-        offCtx.clearRect(0, 0, width, height);
-        offCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
-        const imageData = offCtx.getImageData(0, 0, width, height).data;
-
-        const cols = Math.ceil(width / spacing);
-        const rows = Math.ceil(height / spacing);
-        
-        skinGrid = [];
-        for (let i = 0; i < cols; i++) {
-            skinGrid[i] = [];
-            for (let j = 0; j < rows; j++) {
-                let x = i * spacing + spacing / 2;
-                let y = j * spacing + spacing / 2;
-
-                const pixelX = Math.floor(x);
-                const pixelY = Math.floor(y);
-                
-                if(pixelX >= width || pixelY >= height) continue;
-
-                const index = (pixelY * width + pixelX) * 4;
-
-                const r = imageData[index];
-                const g = imageData[index + 1];
-                const b = imageData[index + 2];
-
-                // 명도 계산
-                let brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-                // 텍스트 위치에 해당하는 픽셀의 색상 정보(r, g, b)를 함께 저장합니다.
-                skinGrid[i][j] = {
-                    x: x,
-                    y: y,
-                    brightness: brightness,
-                    r: r,
-                    g: g,
-                    b: b
-                };
-            }
-        }
-    }
-
-    function draw() {
-        if (video.readyState >= video.HAVE_CURRENT_DATA) {
-            updateGrid();
-        }
-
-        // 배경을 검은색으로 지웁니다.
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
-
-        const cols = skinGrid.length;
-        if (cols > 0) {
-            const rows = skinGrid[0].length;
-
-            for (let i = 0; i < cols; i++) {
-                for (let j = 0; j < rows; j++) {
-                    let cell = skinGrid[i][j];
-                    if (!cell) continue;
-
-                    let charIndex = Math.floor(cell.brightness * (densityChars.length - 1));
-                    if (charIndex < 0) charIndex = 0;
-                    if (charIndex >= densityChars.length) charIndex = densityChars.length - 1;
-
-                    // 저장된 원본 픽셀의 RGB 색상을 텍스트 색상으로 지정합니다.
-                    ctx.fillStyle = `rgb(${cell.r}, ${cell.g}, ${cell.b})`;
-                    ctx.fillText(densityChars[charIndex], cell.x, cell.y);
-                }
-            }
-        }
-
-        requestAnimationFrame(draw);
-    }
-</script>
+    <script type="module" src="js/app.js"></script>
 
 </body>
+
 </html>
